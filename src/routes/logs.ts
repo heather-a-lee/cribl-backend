@@ -14,8 +14,13 @@ routes.get("/", async (req, res) => {
   try {
     const { query } = req;
     requestQuerySchema.parse(query);
-    const { keyword, filename } = query;
-    await getLogsByFilename(filename as string, res, keyword as string, 0);
+    const { keyword, filename, n } = query;
+    await getLogsByFilename(
+      filename as string,
+      res,
+      keyword as string,
+      n ? Number(n) : undefined
+    );
     return res.end();
   } catch (err) {
     console.log("err", err);

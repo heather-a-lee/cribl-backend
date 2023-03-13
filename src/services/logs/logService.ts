@@ -1,6 +1,9 @@
 import { ServerResponse } from "http";
+import { pipeline, Transform } from "stream";
 import { createLogger, format, transports } from "winston";
+import BoyersMooreSearchFilter from "../reader/boyersMooreTransform";
 import ReverseStreamProcessor from "../reader/reverseStreamProcessor";
+import boyerMooreSearch from "../search/boyerMooreSearch";
 
 // TODO: Move this to a shared logger file
 const logLevels = {
@@ -17,47 +20,6 @@ const logger = createLogger({
   transports: [new transports.Console()],
 });
 
-const generateShiftTable = (pattern: string) => {
-  const shift: { [key: string]: number } = {};
-  for (let i = 0; i < pattern.length - 1; i++) {
-    shift[pattern[i]] = Math.max(1, pattern.length - i - 1);
-  }
-  const lastChar = pattern[pattern.length - 1];
-  if (shift[lastChar] === undefined) {
-    shift[lastChar] = pattern.length;
-  }
-  return shift;
-};
-
-/**
- * grep uses Boyer's Moore under the hood to quickly find matching patterns.
- */
-function boyerMooreSearch(source: string, pattern: string) {
-  const shiftTable = generateShiftTable(pattern);
-  const maxOffset = source.length - pattern.length;
-  const patternLastIndex = pattern.length - 1;
-  let offset = 0;
-  while (offset <= maxOffset) {
-    let scanIndex = 0;
-    while (
-      scanIndex < pattern.length &&
-      pattern[scanIndex] == source[scanIndex + offset]
-    ) {
-      if (scanIndex === patternLastIndex) return offset;
-      scanIndex++;
-    }
-
-    const badMatch = source[offset + patternLastIndex];
-    let shift = shiftTable[badMatch];
-    if (shift) {
-      offset += shift;
-    } else {
-      offset += 1;
-    }
-  }
-  return -1;
-}
-
 /**
  * Should support: filename to filter by, filter results based on keyword match, last n number of matching entries
  */
@@ -70,13 +32,31 @@ async function getLogsByFilename(
   // TODO: Check if log file exists
   const reverseReadableStream = new ReverseStreamProcessor(
     `/var/log/${filename}`,
+    {
+      maxMatches: n ?? undefined,
+      chunkSize: /* 1024 * 16 */ 157286400,
+    },
     {}
   );
   // TODO: Use a stream to write result in case there are a lot of results
   console.time(__filename);
 
+  let transformer: Transform | undefined;
+  if (keyword) {
+    transformer = new BoyersMooreSearchFilter(keyword);
+  }
+
+  // await pipeline(reverseReadableStream, transformer, res, (err) =>
+  //   console.log(err)
+  // );
+
   return new Promise((resolve, reject) => {
+    // if (transformer) {
+    //   reverseReadableStream.pipe(transformer as Transform);
+    // }
     reverseReadableStream.on("data", (data) => {
+      // console.log("already writing data", data);
+      // res.write(data);
       if (keyword && boyerMooreSearch(data.toString(), keyword) !== -1) {
         res.write(data);
       } else if (!keyword) {
@@ -84,7 +64,7 @@ async function getLogsByFilename(
       }
     });
 
-    reverseReadableStream.on("end", () => {
+    reverseReadableStream.on("close", () => {
       console.timeEnd(__filename);
       resolve(true);
       return;
