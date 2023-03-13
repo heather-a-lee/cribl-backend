@@ -15,12 +15,10 @@ routes.get("/", async (req, res) => {
     const { query } = req;
     requestQuerySchema.parse(query);
     const { keyword, filename } = query;
-    const lines = await getLogsByFilename(
-      filename as string,
-      keyword as string,
-      0
-    );
-    return res.json({ logs: lines });
+    await getLogsByFilename(filename as string, res, keyword as string, 0);
+    // return res.json({ logs: lines });
+    console.log("calling res.end");
+    return res.end();
   } catch (err) {
     console.log("err", err);
     return res.status(500).json({ error: [err.message] });

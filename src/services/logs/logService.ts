@@ -1,6 +1,6 @@
-import fs from "fs";
-import readline from "readline";
+import { ServerResponse } from "http";
 import { createLogger, format, transports } from "winston";
+import ReverseStreamProcessor from "../reader/reverseStreamProcessor";
 
 // TODO: Move this to a shared logger file
 const logLevels = {
@@ -38,7 +38,6 @@ function boyerMooreSearch(source: string, pattern: string) {
   const patternLastIndex = pattern.length - 1;
   let offset = 0;
   while (offset <= maxOffset) {
-    // console.log("i is", i);
     let scanIndex = 0;
     while (
       scanIndex < pattern.length &&
@@ -64,26 +63,34 @@ function boyerMooreSearch(source: string, pattern: string) {
  */
 async function getLogsByFilename(
   filename: string,
+  res: ServerResponse,
   keyword?: string,
   n?: number
 ) {
   // TODO: Check if log file exists
-  const readableStream = fs.createReadStream(`/var/log/${filename}`);
-  const rl = readline.createInterface({
-    input: readableStream,
-    crlfDelay: Infinity,
-  });
+  const reverseReadableStream = new ReverseStreamProcessor(
+    `/var/log/${filename}`,
+    {}
+  );
   // TODO: Use a stream to write result in case there are a lot of results
-  const result = [];
-  for await (const line of rl) {
-    // console.log(`line is ${line}`);
-    // logger.info(`Line recieved in buffer: ${line}`);
-    if (keyword && boyerMooreSearch(line, keyword) === -1) {
-      continue;
-    }
-    result.push(line);
-  }
-  return result;
+  console.time(__filename);
+
+  return new Promise((resolve, reject) => {
+    reverseReadableStream.on("data", (data) => {
+      if (keyword && boyerMooreSearch(data.toString(), keyword) !== -1) {
+        res.write(data);
+      } else if (!keyword) {
+        res.write(data);
+      }
+    });
+
+    reverseReadableStream.on("end", () => {
+      console.timeEnd(__filename);
+      resolve(true);
+      return;
+    });
+  });
+  // return result;
 }
 
 export { getLogsByFilename };
