@@ -9,6 +9,7 @@ class ReverseStreamProcessor extends Readable {
   chunkSize = 1024;
   bytesRead = 0;
   fileDescriptor: number;
+  leftoverBuffer: string;
 
   constructor(filename: string, opts: {}) {
     opts = opts || {};
@@ -16,11 +17,7 @@ class ReverseStreamProcessor extends Readable {
     this.filename = filename;
     this.fileSize = fs.statSync(filename).size;
     this.fileDescriptor = fs.openSync(filename, "r");
-  }
-
-  _reverseChunk(chunk: string) {
-    // TODO: Implement own reverse function
-    return chunk.split(/\r?\n/).reverse().join("\n");
+    this.leftoverBuffer = "";
   }
 
   async _readChunks(chunkBuffer: Buffer, readBytes: number) {
@@ -31,12 +28,34 @@ class ReverseStreamProcessor extends Readable {
       readBytes,
       this.fileSize - this.bytesRead - this.chunkSize
     );
-    this.push(this._reverseChunk(chunkBuffer.toString()));
-    // this.push(null); // TESTING IF WE GET MOST RECENT LOG
+
+    let buffer = chunkBuffer.toString();
+
+    while (
+      buffer.lastIndexOf("\n") !== buffer.length &&
+      buffer.lastIndexOf("\n") !== -1
+    ) {
+      if (this.leftoverBuffer) {
+        this.push(buffer.slice(buffer.lastIndexOf("\n")) + this.leftoverBuffer);
+        this.leftoverBuffer = undefined;
+      } else {
+        this.push(buffer.slice(buffer.lastIndexOf("\n")));
+      }
+      if (buffer.lastIndexOf("\n") > 0) {
+        buffer = buffer.slice(0, buffer.lastIndexOf("\n") - 1);
+      } else {
+        break;
+      }
+    }
+
+    if (buffer.length > 0) {
+      this.leftoverBuffer = buffer;
+    }
     this.bytesRead += readBytes;
   }
 
   _read() {
+    // TODO: Remove this capacity of 1024kb later -- easier to test for now
     if (this.bytesRead >= this.fileSize || this.bytesRead >= 1024000) {
       // cap response at 1024kb
       this.push(null);

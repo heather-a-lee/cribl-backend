@@ -16,8 +16,6 @@ routes.get("/", async (req, res) => {
     requestQuerySchema.parse(query);
     const { keyword, filename } = query;
     await getLogsByFilename(filename as string, res, keyword as string, 0);
-    // return res.json({ logs: lines });
-    console.log("calling res.end");
     return res.end();
   } catch (err) {
     console.log("err", err);
