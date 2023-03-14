@@ -1,23 +1,22 @@
-import fs, { ReadStream } from "fs";
-import { ServerResponse } from "http";
-import readline from "readline";
-import { pipeline, Transform, Stream, Readable } from "stream";
-import boyerMooreSearch from "../search/boyerMooreSearch";
+import fs from "fs";
+import util from "util";
+import { Readable } from "stream";
+
+const read = util.promisify(fs.read);
 
 class ReverseStreamProcessor extends Readable {
   filename = "";
   fileSize;
   chunkSize: number;
   bytesRead = 0;
+  byteOffset = 0;
   linesEmitted = 0;
   fileDescriptor: number;
   leftoverBuffer: string;
-  maxMatches?: number;
-  keywordFilter?: string;
 
   constructor(
     filename: string,
-    opts: { maxMatches?: number; chunkSize?: number; keywordFilter?: string },
+    opts: { chunkSize?: number; byteOffset?: number },
     readerOpts: {}
   ) {
     readerOpts = readerOpts || {};
@@ -27,8 +26,7 @@ class ReverseStreamProcessor extends Readable {
     this.fileDescriptor = fs.openSync(filename, "r");
     this.leftoverBuffer = "";
     this.chunkSize = opts.chunkSize || 1024;
-    this.maxMatches = opts.maxMatches;
-    this.keywordFilter = opts.keywordFilter;
+    this.byteOffset = opts.byteOffset || 0;
   }
 
   _getNextLine(buffer: string) {
@@ -37,41 +35,27 @@ class ReverseStreamProcessor extends Readable {
       upcomingLine = upcomingLine + this.leftoverBuffer;
       this.leftoverBuffer = undefined;
     }
-    // if (
-    //   this.keywordFilter &&
-    //   boyerMooreSearch(upcomingLine, this.keywordFilter) === -1
-    // ) {
-    //   return;
-    // }
     return upcomingLine;
   }
 
   async _readChunks(chunkBuffer: Buffer, readBytes: number) {
-    fs.readSync(
+    const { buffer: cBuffer, bytesRead } = await read(
       this.fileDescriptor,
       chunkBuffer,
       0,
       readBytes,
-      this.fileSize - this.bytesRead - this.chunkSize
+      this.fileSize - this.byteOffset - this.bytesRead - this.chunkSize
     );
 
-    let buffer = chunkBuffer.toString();
+    let buffer = cBuffer.toString();
 
-    while (
-      // buffer.lastIndexOf("\n") !== buffer.length &&
-      buffer.lastIndexOf("\n") !== -1
-    ) {
-      if (this.maxMatches && this.linesEmitted > this.maxMatches) {
-        buffer = undefined;
-        break;
-      }
-
+    while (buffer.lastIndexOf("\n") !== -1) {
       const nextLine = this._getNextLine(buffer);
-      if (nextLine !== undefined) {
-        this.push(nextLine);
-        this.linesEmitted += 1;
-      }
-      if (buffer.lastIndexOf("\n") > 0) {
+      this.push(nextLine);
+
+      this.linesEmitted += 1;
+
+      if (buffer.lastIndexOf("\n") >= 0) {
         buffer = buffer.slice(0, buffer.lastIndexOf("\n"));
       } else {
         break;
@@ -82,26 +66,43 @@ class ReverseStreamProcessor extends Readable {
       this.leftoverBuffer = buffer;
     }
 
-    this.bytesRead += readBytes;
+    this.bytesRead += bytesRead;
   }
 
-  _read() {
-    // TODO: Remove this capacity of 1024kb later -- easier to test for now
+  async _read() {
     if (
       this.bytesRead >= this.fileSize ||
-      (this.maxMatches && this.linesEmitted >= this.maxMatches) // ||
-      /* this.bytesRead >= 157286400 */ // 1/10th the size of the full 1.5GB file
+      this.bytesRead >= 104857600 // max size is 100MB
     ) {
-      // cap response at 1024kb
       if (this.leftoverBuffer) {
         this.push("\n" + this.leftoverBuffer);
       }
+      // close the buffer
       this.push(null);
       return;
     }
-    const readBytes = Math.min(this.chunkSize, this.fileSize - this.bytesRead);
+    if (this.fileSize - this.byteOffset - this.bytesRead <= 0) {
+      return this.push(null);
+    }
+    const readBytes = Math.min(
+      this.chunkSize,
+      this.fileSize - this.byteOffset - this.bytesRead
+    );
+    // console.debug("Memory allocation", process.memoryUsage());
     const chunkBuffer = Buffer.alloc(readBytes);
-    this._readChunks(chunkBuffer, readBytes);
+    await this._readChunks(chunkBuffer, readBytes);
+  }
+
+  /**
+   * Gets the total number of bytes read from file.
+   * @returns number
+   */
+  getBytesRead() {
+    return this.byteOffset + this.bytesRead;
+  }
+
+  getTotalLines() {
+    return this.linesEmitted;
   }
 }
 

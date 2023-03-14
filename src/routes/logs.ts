@@ -1,30 +1,26 @@
 import { Router } from "express";
 import { getLogsByFilename } from "../services/logs/logService";
-import { z } from "zod";
-
-const requestQuerySchema = z.object({
-  filename: z.string(),
-  keyword: z.string().optional(),
-  n: z.string().optional(),
-});
-
 const routes = Router();
 
 routes.get("/", async (req, res) => {
   try {
     const { query } = req;
-    requestQuerySchema.parse(query);
-    const { keyword, filename, n } = query;
+    const { keyword, filename, n, byteOffset } = query;
+    if (!filename) {
+      return res
+        .status(400)
+        .json({ error: "Missing required query parameter: filename" });
+    }
     await getLogsByFilename(
-      filename as string,
+      `/var/log/${filename}` as string,
       res,
       keyword as string,
-      n ? Number(n) : undefined
+      n ? Number(n) : undefined,
+      byteOffset ? Number(byteOffset) : undefined
     );
     return res.end();
   } catch (err) {
-    console.log("err", err);
-    return res.status(500).json({ error: [err.message] });
+    return res.status(500).json({ error: err.message });
   }
 });
 

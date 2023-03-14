@@ -24,7 +24,9 @@ function boyerMooreSearch(source: string, pattern: string) {
       scanIndex < pattern.length &&
       pattern[scanIndex] == source[scanIndex + offset]
     ) {
-      if (scanIndex === patternLastIndex) return offset;
+      if (scanIndex === patternLastIndex) {
+        return offset;
+      }
       scanIndex++;
     }
 
