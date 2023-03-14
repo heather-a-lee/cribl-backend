@@ -23,7 +23,7 @@ async function getLogsByFilename(
   const reverseReadableStream = new ReverseStreamProcessor(
     filename,
     {
-      chunkSize: 104857600, // 1110000, // 1.11MB
+      chunkSize: 1110000, // 1.11MB
       byteOffset,
     },
     {}

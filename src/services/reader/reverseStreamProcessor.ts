@@ -72,7 +72,7 @@ class ReverseStreamProcessor extends Readable {
   async _read() {
     if (
       this.bytesRead >= this.fileSize ||
-      this.bytesRead >= 104857600 // max size is 100MB
+      this.bytesRead >= 20000000 // max size is 20MB
     ) {
       if (this.leftoverBuffer) {
         this.push("\n" + this.leftoverBuffer);
