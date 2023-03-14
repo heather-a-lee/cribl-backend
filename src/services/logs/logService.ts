@@ -50,11 +50,11 @@ async function getLogsByFilename(
       console.timeEnd(__filename);
       /** With more time, this could be written to a header or somewhere in the
        * response so the user knows where to paginate next. */
-      // console.log(
-      //   "total bytes read",
-      //   reverseReadableStream.getBytesRead(),
-      //   reverseReadableStream.getTotalLines()
-      // );
+      console.log(
+        "total bytes read",
+        reverseReadableStream.getBytesRead(),
+        reverseReadableStream.getTotalLines()
+      );
       resolve(true);
       return;
     });
