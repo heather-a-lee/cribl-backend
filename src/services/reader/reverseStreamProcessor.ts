@@ -38,6 +38,13 @@ class ReverseStreamProcessor extends Readable {
     return upcomingLine;
   }
 
+  static removeNewLineAtEOF(buffer: string) {
+    if (buffer[buffer.length - 1] === "\n") {
+      buffer = buffer.slice(0, buffer.length - 1);
+    }
+    return buffer;
+  }
+
   async _readChunks(chunkBuffer: Buffer, readBytes: number) {
     const { buffer: cBuffer, bytesRead } = await read(
       this.fileDescriptor,
@@ -48,6 +55,8 @@ class ReverseStreamProcessor extends Readable {
     );
 
     let buffer = cBuffer.toString();
+
+    buffer = ReverseStreamProcessor.removeNewLineAtEOF(buffer);
 
     while (buffer.lastIndexOf("\n") !== -1) {
       const nextLine = this._getNextLine(buffer);
