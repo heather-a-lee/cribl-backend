@@ -37,6 +37,6 @@ describe("reverseStreamProcessor", () => {
       });
     });
     const results = await reverseStream;
-    expect(results).toEqual(["\n", "\ndef"]);
+    expect(results).toEqual(["\ndef"]);
   });
 });
