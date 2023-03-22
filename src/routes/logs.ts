@@ -11,6 +11,9 @@ routes.get("/", async (req, res) => {
         .status(400)
         .json({ error: "Missing required query parameter: filename" });
     }
+    if ((filename as string).includes("../")) {
+      return res.status(400).json({ error: "Cannot change directories" });
+    }
     await getLogsByFilename(
       `/var/log/${filename}` as string,
       res,
