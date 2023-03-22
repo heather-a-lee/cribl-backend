@@ -22,7 +22,11 @@ class ReverseStreamProcessor extends Readable {
     readerOpts = readerOpts || {};
     super(readerOpts);
     this.filename = filename;
-    this.fileSize = fs.statSync(filename).size;
+    const fileStats = fs.statSync(filename);
+    this.fileSize = fileStats.size;
+    if (fileStats.isDirectory()) {
+      throw new Error("Invalid file provided");
+    }
     this.fileDescriptor = fs.openSync(filename, "r");
     this.leftoverBuffer = "";
     this.chunkSize = opts.chunkSize || 1024;
