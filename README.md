@@ -2,11 +2,11 @@
 
 Hi there! Thanks for taking the time to review my project. This is an Express server which offers one endpoint to expose logs in the /var/log folder:
 
-- `/api/v0/logs?filename=<filename>,keyword=<keyword>,n=<n>`
+- `/api/v0/logs?filename=<filename>&keyword=<keyword>&n=<n>`
 
 where filename is a required query parameter, and keyword and n are both optional parameters. `keyword` gives the ability to filter results based on if a log line includes a particular string, while `n` returns all the last `n` matches for a given keyword (or the last `n` lines if no keyword is provided). For example, for a request like
 
-- `/api/v0/logs?filename=<filename>,n=<n>`
+- `/api/v0/logs?filename=<filename>&n=<n>`
 
 should give the same response data as what `tail -n <n> <filename>` should return.
 
